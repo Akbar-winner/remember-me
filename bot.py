@@ -1,10 +1,12 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher, types
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiohttp import web
 
-# Bot tokeningizni shu yerga yozing
-BOT_TOKEN = "9176290858:AAHqWelGkamtdmFkrcMPFnx-fxxaLtW3Q4w"
+# TOKENGIZNI TO'G'RIDAN-TO'G'RI QO'SHTIRNOQ ICHIGA YOZING:
+BOT_TOKEN = "9176290858:AAHqWelGkamtdmFkrcMPFnx-fxxaLtW3Q4w"  # O'z tokeningizni yozing
 
 logging.basicConfig(level=logging.INFO)
 
@@ -16,12 +18,10 @@ scheduler = AsyncIOScheduler(timezone="Asia/Tashkent")
 async def send_remind(chat_id: int, text: str):
     await bot.send_message(chat_id=chat_id, text=f"⏰ **Eslatma:**\n{text}", parse_mode="Markdown")
 
-# Toq kunlar (Dushanba, Chorshanba, Juma) uchun eslatmalarni o'rnatish funksiyasi
+# Toq kunlar (Dushanba, Chorshanba, Juma) uchun eslatmalar
 def setup_odd_days_reminders(chat_id: int):
-    # Yakshanba olib tashlandi, faqat: Dushanba, Chorshanba, Juma
     days = 'mon,wed,fri'
 
-    # 1. Soat 06:20 - Ibodat qilish
     scheduler.add_job(
         send_remind,
         trigger="cron",
@@ -30,8 +30,6 @@ def setup_odd_days_reminders(chat_id: int):
         minute=20,
         args=[chat_id, "🌅 Ertalabki ibodat vaqti bo'ldi!"]
     )
-
-    # 2. Soat 13:20 - Ibodat qilish
     scheduler.add_job(
         send_remind,
         trigger="cron",
@@ -40,8 +38,6 @@ def setup_odd_days_reminders(chat_id: int):
         minute=20,
         args=[chat_id, "☀️ Kunduzgi ibodat vaqti bo'ldi!"]
     )
-
-    # 3. Soat 20:30 - Trenirovka (yarim soat)
     scheduler.add_job(
         send_remind,
         trigger="cron",
@@ -50,8 +46,6 @@ def setup_odd_days_reminders(chat_id: int):
         minute=30,
         args=[chat_id, "💪 Trenirovka vaqti! Yarim soat faol harakat qilamiz."]
     )
-
-    # 4. Soat 21:00 - Uxlash
     scheduler.add_job(
         send_remind,
         trigger="cron",
@@ -61,11 +55,9 @@ def setup_odd_days_reminders(chat_id: int):
         args=[chat_id, "🌙 Kech bo'ldi, uxlash vaqti keldi. Marhamat, dam oling!"]
     )
 
-# /start komandasi
 @dp.message_handler(commands=["start"])
 async def start_handler(message: types.Message):
     setup_odd_days_reminders(message.chat.id)
-    
     await message.answer(
         "👋 Assalomu alaykum! Sizning **Dushanba, Chorshanba, Juma** kunlari uchun rejangiz muvaffaqiyatli ulandi:\n\n"
         "📿 **06:20** — Ibodat qilish\n"
@@ -76,8 +68,25 @@ async def start_handler(message: types.Message):
         parse_mode="Markdown"
     )
 
+# Render veb-serveri uchun kichik handler (Portni band qilish uchun)
+async def handle(request):
+    return web.Response(text="Bot is running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    # Render taqdim etadigan PORT raqamini olamiz
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
 async def main():
     scheduler.start()
+    # Veb-serverni ishga tushiramiz (Render talabi)
+    await start_web_server()
+    # Botni ishga tushiramiz
     await dp.start_polling()
 
 if __name__ == "__main__":
